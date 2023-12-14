@@ -281,10 +281,7 @@ class ReceiveSQL{
 	bool Send(zmq::socket_t* sock, bool more, T&& messagedata){
 		zmq::message_t message(sizeof(T));
 		memcpy(message.data(), &messagedata, sizeof(T));
-		bool send_ok;
-		if(more) send_ok = sock->send(message, ZMQ_SNDMORE);
-		else     send_ok = sock->send(message);
-		return send_ok;
+		return Send(sock, more, message);
 	}
 	
 	// recursive case; send the next message part and forward all remaining parts
@@ -300,7 +297,7 @@ class ReceiveSQL{
 	template <typename T>
 	int PollAndSend(zmq::socket_t* sock, zmq::pollitem_t poll, int timeout, T&& message){
 		// check for listener
-		int ret = zmq::poll(&poll, 1, timeout);
+		int ret = zmq::poll(&poll, 1, std::chrono::milliseconds(timeout));
 		if(ret<0){
 			// error polling - is the socket closed?
 			return -3;
@@ -320,7 +317,7 @@ class ReceiveSQL{
 	template <typename T, typename... Rest>
 	int PollAndSend(zmq::socket_t* sock, zmq::pollitem_t poll, int timeout, T&& message, Rest&&... rest){
 		// check for listener
-		int ret = zmq::poll(&poll, 1, timeout);
+		int ret = zmq::poll(&poll, 1, std::chrono::milliseconds(timeout));
 		if(ret<0){
 			// error polling - is the socket closed?
 			return -3;

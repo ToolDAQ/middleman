@@ -106,18 +106,18 @@ void SlowControlCollection::Thread(Thread_args* arg){
 
   SlowControlCollectionThread_args* args=reinterpret_cast<SlowControlCollectionThread_args*>(arg);
 
-  zmq::poll(&(args->items[0]), 1, args->poll_length);
+  zmq::poll(&(args->items[0]), 1, std::chrono::milliseconds(args->poll_length));
 
   if (args->items[0].revents & ZMQ_POLLIN){
 
     zmq::message_t identity;
-    args->sock->recv(&identity);
+    args->sock->recv(identity);
 
     zmq::message_t blank;
-    args->sock->recv(&blank);
+    args->sock->recv(blank);
 
     zmq::message_t message;
-    args->sock->recv(&message);
+    args->sock->recv(message);
     std::istringstream iss(static_cast<char*>(message.data()));
     Store tmp;
     tmp.JsonParser(iss.str());
@@ -160,9 +160,9 @@ void SlowControlCollection::Thread(Thread_args* arg){
     snprintf ((char *) send.data(), tmp2.length()+1 , "%s" ,tmp2.c_str()) ;
     
     
-    args->sock->send(identity, ZMQ_SNDMORE);
-    args->sock->send(blank, ZMQ_SNDMORE);
-    args->sock->send(send);
+    args->sock->send(identity, zmq::send_flags::sndmore);
+    args->sock->send(blank,    zmq::send_flags::sndmore);
+    args->sock->send(send,     zmq::send_flags::none);
   }
 
 

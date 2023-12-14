@@ -3,7 +3,7 @@
 #systemctl start postgresql-12
 
 # export path to zmq, pqxx and boost
-export LD_LIBRARY_PATH=/opt/libpqxx-6.4.5/install/lib:/opt/boost_1_66_0/install/lib:/opt/zeromq-4.0.7/lib:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=/opt/libpqxx-7.8.1/install/lib:/opt/boost_1_66_0/install/lib:/opt/zeromq-4.3.5/lib:$LD_LIBRARY_PATH
 
 # setup database environmental variables
 # (probably not required as they're overridden in the config file anyway)

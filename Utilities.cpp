@@ -1,5 +1,7 @@
 #include <Utilities.h>
 
+using namespace std::literals::chrono_literals;
+
 Utilities::Utilities(zmq::context_t* zmqcontext){ 
   context=zmqcontext;
   Threads.clear();
@@ -19,7 +21,7 @@ bool Utilities::AddService(std::string ServiceName, unsigned int port, bool Stat
   zmq::message_t send(test.str().length()+1);
   snprintf ((char *) send.data(), test.str().length()+1 , "%s" ,test.str().c_str()) ;
  
-  return Ireceive.send(send);
+  return Ireceive.send(send, zmq::send_flags::none).has_value();
 
 
 }
@@ -35,7 +37,7 @@ bool Utilities::RemoveService(std::string ServiceName){
   zmq::message_t send(test.str().length()+1);
   snprintf ((char *) send.data(), test.str().length()+1 , "%s" ,test.str().c_str()) ;
 
-  return Ireceive.send(send);
+  return Ireceive.send(send, zmq::send_flags::none).has_value();
 
 }
 
@@ -52,12 +54,12 @@ int Utilities::UpdateConnections(std::string ServiceName, zmq::socket_t* sock, s
     snprintf ((char *) send.data(), 4 , "%s" ,"All") ;
 
 
-    if(!Ireceive.send(send)){
+    if(!Ireceive.send(send, zmq::send_flags::none)){
     	std::cerr<<"Failed to send 'ALL' query to ServiceDiscovery!"<<std::endl;
     };
 
     zmq::message_t receive;
-    if(!Ireceive.recv(&receive)){
+    if(!Ireceive.recv(receive)){
     	std::cerr<<"Failed to receive 'ALL' query from ServiceDiscovery!"<<std::endl;
     };
     std::istringstream iss(static_cast<char*>(receive.data()));
@@ -70,7 +72,7 @@ int Utilities::UpdateConnections(std::string ServiceName, zmq::socket_t* sock, s
       Store *service = new Store;
 
       zmq::message_t servicem;
-      Ireceive.recv(&servicem);
+      Ireceive.recv(servicem);
 
       std::istringstream ss(static_cast<char*>(servicem.data()));
       service->JsonParser(ss.str());
@@ -128,12 +130,12 @@ int Utilities::ConnectToEndpoints(zmq::socket_t* readrep_sock, std::map<std::str
     snprintf ((char *) send.data(), 4 , "%s" ,"All") ;
 
 
-    if(!Ireceive.send(send)){
+    if(!Ireceive.send(send, zmq::send_flags::none)){
     	std::cerr<<"Failed to send 'ALL' query to ServiceDiscovery!"<<std::endl;
     };
 
     zmq::message_t receive;
-    if(!Ireceive.recv(&receive)){
+    if(!Ireceive.recv(receive)){
     	std::cerr<<"Failed to receive 'ALL' query from ServiceDiscovery!"<<std::endl;
     };
     std::istringstream iss(static_cast<char*>(receive.data()));
@@ -148,7 +150,7 @@ int Utilities::ConnectToEndpoints(zmq::socket_t* readrep_sock, std::map<std::str
       Store *service = new Store;
       
       zmq::message_t servicem;
-      Ireceive.recv(&servicem);
+      Ireceive.recv(servicem);
       
       std::istringstream ss(static_cast<char*>(servicem.data()));
       service->JsonParser(ss.str());
@@ -304,12 +306,12 @@ void *Utilities::String_Thread(void *arg){
 	
 	std::string command="";
 	
-	zmq::poll(&initems[0], 1, 0);
+	zmq::poll(&initems[0], 1, 0ms);
 	
 	if ((initems[0].revents & ZMQ_POLLIN)){
 	  
 	  zmq::message_t message;
-	  IThread.recv(&message);
+	  IThread.recv(message);
 	  command=std::string(static_cast<char *>(message.data()));
   	  
 	}
@@ -357,9 +359,8 @@ bool Utilities::MessageThread(Thread_args* args, std::string Message, bool block
     zmq::message_t msg(Message.length()+1);
     snprintf((char *)msg.data(), Message.length()+1, "%s", Message.c_str());
    
-    if(block) ret=args->sock->send(msg);
-    else ret=args->sock->send(msg, ZMQ_NOBLOCK);
-    
+    auto flags = block ? zmq::send_flags::none : zmq::send_flags::dontwait;
+    ret = args->sock->send(msg, flags).has_value();
   }
   
   return ret;

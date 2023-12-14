@@ -74,12 +74,8 @@ bool Postgres::CloseConnection(std::string* err){
 			if(verbosity>v_debug) std::cout<<"Connection is not open"<<std::endl;
 			return true;
 		}
-		conn->disconnect();
-		if(conn->is_open()){
-			std::cerr<<"Attempted to close postgresql connection, yet it remains open?!" <<std::endl;
-			if(err) *err="pqxx::connection::is_open() returns true even after calling disconnect";
-			return false;
-		}
+		delete conn;
+		conn = nullptr;
 		return true;
 	}
 	catch (const pqxx::broken_connection &e){
@@ -95,7 +91,6 @@ bool Postgres::CloseConnection(std::string* err){
 
 Postgres::~Postgres(){
 	CloseConnection();
-	if(conn) delete conn;
 }
 
 Postgres::Postgres(){}
@@ -174,7 +169,6 @@ bool Postgres::Query(std::string query, int nret, pqxx::result* res, pqxx::row* 
 			// if our connection is broken after all, disconnect, reconnect and retry
 			if(tries==0){
 				CloseConnection();
-				delete conn; conn=nullptr;
 				continue;
 			} else {
 				std::cerr<<"Postgres::Query error - broken connection, failed to re-establish it"<<std::endl;

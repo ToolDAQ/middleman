@@ -1,5 +1,7 @@
 #include "ServiceDiscovery.h"
 
+using namespace std::literals::chrono_literals;
+
 ServiceDiscovery::ServiceDiscovery(bool Send, bool Receive, int remoteport, std::string address, int multicastport, zmq::context_t * incontext, boost::uuids::uuid UUID, std::string service, int pubsec, int kicksec){
  
     
@@ -65,8 +67,7 @@ void* ServiceDiscovery::MulticastPublishThread(void* arg){
   long msg_id=0;
 
   zmq::socket_t Ireceive (*context, ZMQ_PULL);      
-  int linger = 0;
-  Ireceive.setsockopt (ZMQ_LINGER, &linger, sizeof (linger));
+  Ireceive.set(zmq::sockopt::linger, 0);
   Ireceive.bind("inproc://ServicePublish");  
   /// multi cast /////
   
@@ -119,12 +120,12 @@ void* ServiceDiscovery::MulticastPublishThread(void* arg){
   
   while(running){
   
-    zmq::poll(&items [0], 2, -1);
+    zmq::poll(&items [0], 2);
     
     if ((items [0].revents & ZMQ_POLLIN) && running) {
       
       zmq::message_t commands;
-      Ireceive.recv(&commands);
+      Ireceive.recv(commands);
       
       std::istringstream tmp(static_cast<char*>(commands.data()));
       std::string command;
@@ -193,13 +194,12 @@ void* ServiceDiscovery::MulticastPublishThread(void* arg){
 	  	  
 	  zmq::socket_t StatusCheck (*context, ZMQ_REQ);
 	  int a=2000;
-	  StatusCheck.setsockopt(ZMQ_RCVTIMEO, a);
-	  StatusCheck.setsockopt(ZMQ_SNDTIMEO, a);
-	  int linger = 0;
-	  StatusCheck.setsockopt (ZMQ_LINGER, &linger, sizeof (linger));
-	  // StatusCheck.setsockopt(ZMQ_IMMEDIATE, 1);
-	  //StatusCheck.setsockopt(ZMQ_REQ_RELAXED, 1);
-	  //StatusCheck.setsockopt(ZMQ_REQ_CORRELATE, 1);
+	  StatusCheck.set(zmq::sockopt::rcvtimeo, a);
+	  StatusCheck.set(zmq::sockopt::sndtimeo, a);
+	  StatusCheck.set(zmq::sockopt::linger, 0);
+	  // StatusCheck.set(zmq::sockopt::immediate, 1);
+	  //StatusCheck.set(zmq::sockopt:req_relaxed, 1);
+	  //StatusCheck.set(zmq::sockopt::req_correlate, 1);
 	  std::stringstream connection;
 	  connection<<"tcp://localhost:"<<*(PubServices.at(i)["remote_port"]);
 	  StatusCheck.connect(connection.str().c_str());
@@ -220,18 +220,18 @@ void* ServiceDiscovery::MulticastPublishThread(void* arg){
 	  zmq::message_t Esend(command.length()+1);
 	  snprintf ((char *) Esend.data(), command.length()+1 , "%s" ,command.c_str()) ;
 	 
-	  zmq::poll(out,1,1000);
+	  zmq::poll(out,1,1s);
 	  
 	  if(out[0].revents & ZMQ_POLLOUT){
-	    if(StatusCheck.send(Esend)){
+	    if(StatusCheck.send(Esend, zmq::send_flags::none)){
 	      
 	      //StatusCheck.disconnect(connection.str().c_str());
 	      //StatusCheck.close();
 	      //std::cout<<"waiting for message "<<std::endl;
-	      zmq::poll(in,1,1000);
+	      zmq::poll(in,1,1s);
 	      if(in[0].revents & ZMQ_POLLIN){
 		zmq::message_t Ereceive;
-		if(StatusCheck.recv(&Ereceive)){
+		if(StatusCheck.recv(Ereceive)){
 		  
 		  std::istringstream ss(static_cast<char*>(Ereceive.data()));
 		  
@@ -380,7 +380,7 @@ void* ServiceDiscovery::MulticastListenThread(void* arg){
   
   while(running){
     
-    zmq::poll (&items [0], 2, -1);
+    zmq::poll (&items [0], 2);
     
     if ((items [0].revents & ZMQ_POLLIN) && running) {
       
@@ -471,13 +471,13 @@ void* ServiceDiscovery::MulticastListenThread(void* arg){
     if ((items [1].revents & ZMQ_POLLIN) && running) {
       
       zmq::message_t Identity;
-      Ireceive.recv(&Identity);
+      Ireceive.recv(Identity);
       
-      Ireceive.send(Identity,ZMQ_SNDMORE);
+      Ireceive.send(Identity, zmq::send_flags::sndmore);
 
       zmq::message_t comm;
  
-      if(Ireceive.recv(&comm)){
+      if(Ireceive.recv(comm)){
 
 	std::istringstream iss(static_cast<char*>(comm.data()));
 	std::string arg1="";
@@ -500,9 +500,7 @@ void* ServiceDiscovery::MulticastListenThread(void* arg){
 	     //std::cout<<"SD sent size="<<size<<std::endl;
 	     //std::cout<<"SD sent message size="<<sizeof(sizem.data())<<std::endl;
 
-	     if(size==0) Ireceive.send(sizem);
-	     else Ireceive.send(sizem,ZMQ_SNDMORE);	    
-	    
+	     Ireceive.send(sizem, size == 0 ? zmq::send_flags::none : zmq::send_flags::sndmore);
 	     
 	     for (std::map<std::string,Store*>::iterator it=RemoteServices.begin(); it!=RemoteServices.end(); ){
 	    
@@ -516,12 +514,12 @@ void* ServiceDiscovery::MulticastListenThread(void* arg){
 	       //	       if (out[0].revents & ZMQ_POLLOUT){
 	       it++;
 	       if(it!=RemoteServices.end()){
-		 Ireceive.send(send,ZMQ_SNDMORE);
+		 Ireceive.send(send, zmq::send_flags::sndmore);
 		 //std::cout<<"SD sent a message"<<std::endl;
 
 	       }
 	       else {
-		 Ireceive.send(send);
+		 Ireceive.send(send, zmq::send_flags::none);
 		 //std::cout<<"SD sent final message"<<std::endl;
 	       }
 
@@ -552,9 +550,9 @@ void* ServiceDiscovery::MulticastListenThread(void* arg){
 	      zmq::message_t send(service.length()+1);
 	      snprintf ((char *) send.data(), service.length()+1 , "%s" ,service.c_str()) ;
 
-	      zmq::poll(out,1,1000);
+	      zmq::poll(out,1,1s);
 	      
-	      if(out[0].revents & ZMQ_POLLOUT) Ireceive.send(send);	    
+	      if(out[0].revents & ZMQ_POLLOUT) Ireceive.send(send, zmq::send_flags::none);
 	    }
 	  }
 	  
@@ -579,9 +577,9 @@ void* ServiceDiscovery::MulticastListenThread(void* arg){
 	      zmq::message_t send(service.length()+1);
 	      snprintf ((char *) send.data(), service.length()+1 , "%s" ,service.c_str()) ;
 
-	      zmq::poll(out,1,1000);
+	      zmq::poll(out,1,1s);
 
-	      if(out[0].revents & ZMQ_POLLOUT) Ireceive.send(send);	    
+	      if(out[0].revents & ZMQ_POLLOUT) Ireceive.send(send, zmq::send_flags::none);
 	    }
 	  }
 	  
@@ -645,7 +643,7 @@ ServiceDiscovery::~ServiceDiscovery(){
     
     zmq::message_t command(5);
     snprintf ((char *) command.data(), 5 , "%s" ,"Quit") ;
-    ServicePublish.send(command);
+    ServicePublish.send(command, zmq::send_flags::none);
     
     //printf("send waiting fir join \n");
     pthread_join(thread[1], NULL);
@@ -673,7 +671,7 @@ ServiceDiscovery::~ServiceDiscovery(){
 
     zmq::message_t command(5);
     snprintf ((char *) command.data(), 5 , "%s" ,"Quit") ;
-    ServiceDiscovery.send(command);
+    ServiceDiscovery.send(command, zmq::send_flags::none);
   
     //printf("sent waiting for receive \n");
     //zmq::message_t ret;

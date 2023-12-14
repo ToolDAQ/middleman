@@ -2,8 +2,8 @@
 
 // constructor from elements, given a direct SQL query string
 Query::Query(zmq::message_t& client_id_in, zmq::message_t& msg_id_in, zmq::message_t& database_in, zmq::message_t& query_in, uint32_t query_ok_in, std::string response_in){
-	client_id.move(&client_id_in);
-	message_id.move(&msg_id_in);
+	client_id.move(client_id_in);
+	message_id.move(msg_id_in);
 	
 	// NOPE reinterpret_cast and copy construction doesn't work
 	//database = reinterpret_cast<const char*>(database_in.data());
@@ -28,8 +28,8 @@ Query::Query(zmq::message_t& client_id_in, zmq::message_t& msg_id_in, zmq::messa
 
 // copy constructor
 Query::Query(const Query& in){
-	client_id.copy(&in.client_id);
-	message_id.copy(&in.message_id);
+	client_id.copy(const_cast<zmq::message_t&>(in.client_id));
+	message_id.copy(const_cast<zmq::message_t&>(in.message_id));
 	database = in.database;
 	query = in.query;
 	query_ok = in.query_ok;
